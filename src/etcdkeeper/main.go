@@ -97,8 +97,24 @@ func main() {
 		sessmgr.GC()
 	})
 	//log.Println(http.Dir(rootPath + "/assets"))
+	fileHandler := http.FileServer(http.Dir(rootPath + "/assets"))
 
-	http.Handle("/", http.FileServer(http.Dir(rootPath+"/assets"))) // view static directory
+	etcdEndpoint, ok := os.LookupEnv("ETCD_ENDPOINT")
+	if ok && etcdEndpoint != "" {
+		log.Printf("Use default etcd_endpoint %s from environment\n", etcdEndpoint)
+		http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+			log.Printf("path: %s\n", req.URL.Path)
+			if req.URL.Path == "/" {
+				http.SetCookie(w, &http.Cookie{
+					Name:  "etcd-endpoint",
+					Value: etcdEndpoint,
+				})
+			}
+			fileHandler.ServeHTTP(w, req)
+		})
+	} else {
+		http.Handle("/", fileHandler) // view static directory
+	}
 
 	log.Printf("listening on %s:%d\n", *host, *port)
 	err = http.ListenAndServe(*host+":"+strconv.Itoa(*port), nil)
